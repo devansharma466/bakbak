@@ -1,0 +1,8 @@
+Bakbak includes / depends on:
+
+  FluidAudio — Copyright FluidInference Team
+  Licensed under the Apache License, Version 2.0
+  https://github.com/FluidInference/FluidAudio
+
+Hold-to-talk and pasteboard restore patterns were studied from MIT-licensed
+open-wispr (https://github.com/human37/open-wispr). No GPL code is included.

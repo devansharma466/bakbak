@@ -1,0 +1,15 @@
+# SwiftPM / Xcode
+app/.build/
+app/.swiftpm/
+app/dist/
+**/DerivedData/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Models / caches (never commit)
+**/*.mlmodelc/
+**/*.mlpackage/
