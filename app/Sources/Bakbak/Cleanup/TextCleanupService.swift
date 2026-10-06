@@ -71,6 +71,7 @@ struct HeuristicCleanupService: TextCleanupService {
         var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !result.isEmpty else { return result }
 
+        result = normalizeTimeAbbreviations(result)
         result = applyDictionary(result, dictionary: dictionary)
         result = stripFillers(result)
         result = applySelfCorrections(result)
@@ -80,6 +81,20 @@ struct HeuristicCleanupService: TextCleanupService {
         result = capitalizeSentences(result)
         result = ensureTerminalPunctuation(result)
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: Times
+
+    /// ASR writes "four P. M." / "6 a.m."; make it "four pm" / "6 am" so the dots don't read as
+    /// sentence ends (which also hid question marks). Keeps a full stop when a new sentence follows.
+    private func normalizeTimeAbbreviations(_ text: String) -> String {
+        var result = text
+        for (letters, word) in [("Pp", "pm"), ("Aa", "am")] {
+            let pattern = "\\b[\(letters)]\\.\\s?[Mm]\\."
+            result = result.replacingOccurrences(of: pattern + "(?=\\s+[A-Z])", with: word + ".", options: .regularExpression)
+            result = result.replacingOccurrences(of: pattern, with: word, options: .regularExpression)
+        }
+        return result
     }
 
     // MARK: Dictionary

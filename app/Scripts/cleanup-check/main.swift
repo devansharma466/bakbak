@@ -53,6 +53,11 @@ let cases: [(String, String)] = [
     // Cross-sentence discourse must stay intact (not treated as a short replacement).
     ("End of thought. Actually no reason to go.", "End of thought. Actually no reason to go."),
     ("Hello. Actually, the meeting is at five", "Hello. The meeting is at five."),
+    // ASR spells times "P. M." / "a.m."; the dots must not end the sentence or hide the "?".
+    ("Can you send me the notes by three? No, wait, four P. M.", "Can you send me the notes by four pm?"),
+    ("Meet at 4 P.M. Then call Sam.", "Meet at 4 pm. Then call Sam."),
+    ("the train leaves at 6 a.m.", "The train leaves at 6 am."),
+    ("is it 9 A. M. or 10", "Is it 9 am or 10?"),
 ]
 
 let service = HeuristicCleanupService()
