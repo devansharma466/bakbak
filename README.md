@@ -3,6 +3,6 @@
 Devan Sharma’s personal on-device macOS dictation app (Wispr Flow–style).
 
 - **Plan / research:** `PLAN.md`, `RESEARCH.md`
-- **App (Phases 0–1):** [`app/`](app/) — see [`app/README.md`](app/README.md) for build & permissions
+- **App (Phases 0–2 + 4):** [`app/`](app/) — see [`app/README.md`](app/README.md) for build, permissions, and meeting mode
 
-Fully local / open-source. No paid APIs. Ad-hoc signing (no $99 Apple Developer account for personal use).
+Fully local / open-source. No paid APIs. Prefer Apple Development signing for stable TCC; ad-hoc fallback available.

@@ -1,9 +1,10 @@
 import AppKit
 import AVFoundation
 import ApplicationServices
+import CoreGraphics
 import Foundation
 
-/// Microphone + Accessibility permission helpers and onboarding state.
+/// Microphone + Accessibility + Screen Recording permission helpers.
 @MainActor
 enum PermissionManager {
     enum MicrophoneStatus: Equatable {
@@ -31,6 +32,12 @@ enum PermissionManager {
         AXIsProcessTrusted()
     }
 
+    /// Screen Recording (needed for ScreenCaptureKit system audio).
+    /// Note: TCC may report false until the user has been prompted at least once.
+    nonisolated static var isScreenRecordingAuthorized: Bool {
+        CGPreflightScreenCaptureAccess()
+    }
+
     /// Request mic access. Returns whether granted.
     static func requestMicrophone() async -> Bool {
         switch microphoneStatus {
@@ -51,8 +58,15 @@ enum PermissionManager {
     @discardableResult
     static func promptAccessibilityIfNeeded() -> Bool {
         if AXIsProcessTrusted() { return true }
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
+    }
+
+    /// Prompt Screen Recording access (shows system dialog once; otherwise open Settings).
+    @discardableResult
+    nonisolated static func requestScreenRecording() -> Bool {
+        if CGPreflightScreenCaptureAccess() { return true }
+        return CGRequestScreenCaptureAccess()
     }
 
     static func openMicrophoneSettings() {
@@ -61,6 +75,10 @@ enum PermissionManager {
 
     static func openAccessibilitySettings() {
         openPrivacyPane("Privacy_Accessibility")
+    }
+
+    static func openScreenRecordingSettings() {
+        openPrivacyPane("Privacy_ScreenCapture")
     }
 
     private static func openPrivacyPane(_ anchor: String) {
