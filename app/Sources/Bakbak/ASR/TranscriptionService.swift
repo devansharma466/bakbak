@@ -34,6 +34,11 @@ actor TranscriptionService {
     private var modelVersion: AsrModelVersion = .v2
     private(set) var loadState: LoadState = .idle
 
+    /// Default chunk length for long meeting audio (~30 s @ 16 kHz).
+    static let defaultChunkSamples = 16_000 * 30
+    /// Overlap between chunks to reduce boundary word cuts (~1 s).
+    static let defaultOverlapSamples = 16_000
+
     /// Prefer English-only Parakeet TDT v2 (higher English recall). Override via settings later.
     func prepare(version: AsrModelVersion = .v2) async throws {
         if case .ready = loadState, modelVersion == version, asrManager != nil {
@@ -45,7 +50,6 @@ actor TranscriptionService {
             // Downloads from Hugging Face on first run (~hundreds of MB), then caches locally.
             let models = try await AsrModels.downloadAndLoad(version: version)
             let manager = AsrManager(config: .default, models: models)
-            // Models passed via init; loadModels is also fine if constructing empty then loading.
             if !(await manager.isAvailable) {
                 try await manager.loadModels(models)
             }
@@ -71,6 +75,47 @@ actor TranscriptionService {
         } catch {
             throw ServiceError.transcriptionFailed(error.localizedDescription)
         }
+    }
+
+    /// Long-form meeting transcription: chunk → join. Returns plain text + metadata.
+    func transcribeMeeting(
+        samples: [Float],
+        chunkSamples: Int = TranscriptionService.defaultChunkSamples,
+        overlapSamples: Int = TranscriptionService.defaultOverlapSamples
+    ) async throws -> (text: String, duration: Double, confidence: Float) {
+        guard !samples.isEmpty else { throw ServiceError.emptyAudio }
+
+        let duration = Double(samples.count) / 16_000.0
+
+        if samples.count <= chunkSamples {
+            let result = try await transcribe(samples: samples)
+            return (result.text, duration, result.confidence)
+        }
+
+        let step = max(1, chunkSamples - overlapSamples)
+        var texts: [String] = []
+        var confidences: [Float] = []
+        var offset = 0
+
+        while offset < samples.count {
+            let end = min(offset + chunkSamples, samples.count)
+            let chunk = Array(samples[offset..<end])
+            if chunk.count < 2_400 { break }
+            let result = try await transcribe(samples: chunk)
+            let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                texts.append(trimmed)
+                confidences.append(result.confidence)
+            }
+            if end >= samples.count { break }
+            offset += step
+        }
+
+        let joined = texts.joined(separator: " ")
+        let confidence: Float = confidences.isEmpty
+            ? 0
+            : confidences.reduce(0, +) / Float(confidences.count)
+        return (joined, duration, confidence)
     }
 
     func unload() async {

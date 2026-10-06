@@ -2,7 +2,7 @@
 
 **For:** Devan Sharma  
 **Target:** MacBook Pro (Apple Silicon), macOS 14+ (Ventura/Sonoma/Sequoia)  
-**Status:** Research complete — awaiting approval before coding  
+**Status:** Phase 0–2 + Phase 4 meeting mode (mic + optional SCK system audio, 30-day library) in `app/`. Phase 3 (languages) not started.  
 **Date:** 5 Oct 2026 (Europe/London)
 
 ---
@@ -133,7 +133,7 @@ Mapped from Wispr Flow (dictation + Notetaker) to a **personal, mostly on-device
         Cleanup LLM                  Transcript + speakers
         - Local: Apple Intelligence  → Summary / actions LLM
           and/or MLX small model
-        - Optional: user API key
+        - ~~Optional: user API key~~ (dropped — free/local only)
                 │                             │
                 ▼                             ▼
         Inject text at cursor        Save markdown note locally
@@ -160,11 +160,11 @@ Mapped from Wispr Flow (dictation + Notetaker) to a **personal, mostly on-device
 - Basic local history.
 - **Exit criteria:** dictate into Notes, Slack, Cursor reliably on Devan’s MacBook Pro.
 
-### Phase 2 — Cleanup + dictionary
-- Cleanup prompt (filler removal, punctuation, light formatting).
-- Prefer on-device path first (Apple Foundation Models / Apple Intelligence if available on OS; else small MLX model; else optional API).
-- Personal dictionary biasing (prompt injection + optional Whisper/Parakeet hotwords where supported).
-- Snippets / simple voice commands.
+### Phase 2 — Cleanup + dictionary ✅ (in `app/`, Oct 2026)
+- Cleanup: Apple Foundation Models when available → heuristic fillers / self-corrections / punctuation (free, no paid APIs; MLX not linked).
+- Personal dictionary UI + JSON store; aliases + preferred spellings injected into cleanup.
+- Settings toggles: cleanup on/off, Apple Intelligence on/off.
+- Snippets / voice commands: deferred.
 - **Exit criteria:** “um”-heavy speech becomes sendable prose; custom names spell correctly.
 
 ### Phase 3 — Languages + polish
@@ -172,11 +172,12 @@ Mapped from Wispr Flow (dictation + Notetaker) to a **personal, mostly on-device
 - Toggle mode, sound feedback, model download UX.
 - Optional per-app tone map (frontmost bundle ID → style).
 
-### Phase 4 — Meeting mode
-- Screen Recording permission + ScreenCaptureKit capture (mic + system).
-- Offline transcript + FluidAudio diarisation.
-- Summary / decisions / action items via same LLM stack.
-- Local meeting library (search later).
+### Phase 4 — Meeting mode ✅ (Oct 2026, v1 shippable)
+- Menu **Start / Stop meeting**; red record icon while live.
+- Mic capture always; ScreenCaptureKit system audio when Screen Recording granted (mic-only fallback).
+- Offline Parakeet transcript (chunked for long audio) + optional cleanup; save to Meetings library.
+- **30-day** auto-purge (`meetings.json` under Application Support/Bakbak).
+- Deferred: live transcript, diarisation, summary / action items, meeting search.
 
 ### Phase 5 — Hardening (ongoing)
 - Latency budgets, battery, thermal.

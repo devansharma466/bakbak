@@ -14,12 +14,14 @@
 	<string>Bakbak</string>
 	<key>CFBundleDisplayName</key>
 	<string>Bakbak</string>
+	<key>CFBundleIconFile</key>
+	<string>Bakbak</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.1.0</string>
+	<string>0.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>4</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
@@ -27,7 +29,11 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Bakbak needs the microphone to dictate text with on-device speech recognition.</string>
+	<string>Bakbak needs the microphone to dictate text and record meetings with on-device speech recognition.</string>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Bakbak can capture system audio during meetings (when you grant Screen Recording) so remote participants are included in the transcript.</string>
+	<key>NSScreenCaptureDescription</key>
+	<string>Bakbak uses Screen Recording only to capture system audio during meetings via ScreenCaptureKit — no screen content is saved.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Devan Sharma. Personal use.</string>
 </dict>
