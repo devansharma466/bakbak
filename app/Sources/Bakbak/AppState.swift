@@ -246,7 +246,7 @@ final class AppState {
         do {
             let capture = try await meetingRecorder.stop()
             // Ignore accidental empty / tiny meetings (~0.5 s).
-            guard capture.samples.count > 8_000 else {
+            guard capture.sampleCount > 8_000 else {
                 meetingState = .idle
                 statusMessage = readyStatusMessage()
                 return
@@ -259,17 +259,43 @@ final class AppState {
                 modelReady = true
             }
 
-            let result = try await transcription.transcribeMeeting(samples: capture.samples)
             let dictionary = dictionaryStore.entries
-            if settingsStore.settings.cleanupEnabled {
-                statusMessage = "Cleaning up meeting…"
-            }
+            let rawText: String
             let polished: String
-            do {
-                polished = try await cleanup.cleanup(result.text, dictionary: dictionary)
-            } catch {
-                NSLog("Bakbak: meeting cleanup failed, saving raw text: \(error.localizedDescription)")
-                polished = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            var segments: [MeetingSegment]?
+
+            // With system audio we can tell you (mic) from them (system): transcribe turn by turn.
+            let turns = capture.usedSystemAudio
+                ? SpeakerTurnDetector.turns(mic: capture.micSamples, system: capture.systemSamples)
+                : []
+            if !turns.isEmpty {
+                let rawSegments = try await transcription.transcribeTurns(turns, capture: capture)
+                if settingsStore.settings.cleanupEnabled {
+                    statusMessage = "Cleaning up meeting…"
+                }
+                var cleanedSegments: [MeetingSegment] = []
+                for segment in rawSegments {
+                    var cleaned = segment
+                    cleaned.text = (try? await meetingTurnCleanup.cleanup(segment.text, dictionary: dictionary))
+                        ?? segment.text
+                    cleanedSegments.append(cleaned)
+                }
+                let merged = MeetingSegment.merged(cleanedSegments)
+                segments = merged.isEmpty ? nil : merged
+                rawText = MeetingSegment.transcript(rawSegments)
+                polished = MeetingSegment.transcript(cleanedSegments)
+            } else {
+                let result = try await transcription.transcribeMeeting(samples: capture.mixed())
+                if settingsStore.settings.cleanupEnabled {
+                    statusMessage = "Cleaning up meeting…"
+                }
+                do {
+                    polished = try await cleanup.cleanup(result.text, dictionary: dictionary)
+                } catch {
+                    NSLog("Bakbak: meeting cleanup failed, saving raw text: \(error.localizedDescription)")
+                    polished = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                rawText = result.text
             }
 
             let meeting = Meeting(
@@ -277,12 +303,16 @@ final class AppState {
                 createdAt: capture.startedAt,
                 endedAt: capture.endedAt,
                 durationSeconds: capture.durationSeconds,
-                rawTranscript: result.text,
+                rawTranscript: rawText,
                 cleanedTranscript: polished,
-                audioSource: capture.usedSystemAudio ? "microphone+system" : "microphone"
+                audioSource: capture.usedSystemAudio ? "microphone+system" : "microphone",
+                segments: segments
             )
             meetingStore.append(meeting)
             lastMeetingTranscript = polished
+            if !polished.isEmpty {
+                writeNotes(for: meeting.id)
+            }
 
             meetingState = .idle
             if polished.isEmpty {
@@ -305,6 +335,48 @@ final class AppState {
                     self.meetingState = .idle
                     self.statusMessage = self.readyStatusMessage()
                 }
+            }
+        }
+    }
+
+    /// Meetings can have hundreds of turns, so each gets the instant heuristic pass rather than
+    /// an Apple Intelligence rewrite (seconds per call). The model writes the notes instead.
+    private var meetingTurnCleanup: any TextCleanupService {
+        settingsStore.settings.cleanupEnabled
+            ? BakbakCleanupService(preferAppleIntelligence: false)
+            : DictionaryOnlyCleanupService()
+    }
+
+    // MARK: - Meeting notes
+
+    /// Meetings whose notes Apple Intelligence is writing right now.
+    var notesInProgress: Set<UUID> = []
+    /// Meetings where the last notes attempt came back empty.
+    var notesFailed: Set<UUID> = []
+
+    var canWriteNotes: Bool {
+        MeetingNotesWriter.isAvailable
+    }
+
+    /// Writes summary / decisions / action items in the background and saves them on the meeting.
+    func writeNotes(for id: UUID) {
+        guard MeetingNotesWriter.isAvailable, !notesInProgress.contains(id),
+              let transcript = meetingStore.meetings.first(where: { $0.id == id })?.cleanedTranscript,
+              !transcript.isEmpty
+        else { return }
+
+        notesInProgress.insert(id)
+        notesFailed.remove(id)
+        Task {
+            let notes = await MeetingNotesWriter.write(transcript: transcript)
+            notesInProgress.remove(id)
+            // The meeting may have been deleted or renamed while the model was writing.
+            guard var meeting = meetingStore.meetings.first(where: { $0.id == id }) else { return }
+            if let notes {
+                meeting.notes = notes
+                meetingStore.update(meeting)
+            } else {
+                notesFailed.insert(id)
             }
         }
     }

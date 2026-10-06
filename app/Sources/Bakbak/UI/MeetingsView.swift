@@ -57,6 +57,9 @@ struct MeetingsView: View {
                     }
                     .contextMenu {
                         Button("Copy transcript") { copy(meeting.cleanedTranscript) }
+                        if let notes = meeting.notes {
+                            Button("Copy notes") { copy(notes.plainText) }
+                        }
                         if meeting.rawTranscript != meeting.cleanedTranscript {
                             Button("Copy raw transcript") { copy(meeting.rawTranscript) }
                         }
@@ -96,18 +99,18 @@ struct MeetingsView: View {
                         )
                     }
 
-                    Text(meeting.cleanedTranscript.isEmpty ? "(No speech detected)" : meeting.cleanedTranscript)
-                        .font(BakbakTheme.bodyFont(15))
-                        .foregroundStyle(BakbakTheme.ink)
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(20)
-                        .background(BakbakTheme.mist, in: RoundedRectangle(cornerRadius: BakbakTheme.radiusCard, style: .continuous))
+                    notesSection(for: meeting)
+
+                    transcript(for: meeting)
 
                     HStack(spacing: 10) {
                         BakbakFilledPill(title: "Copy", compact: true) {
                             copy(meeting.cleanedTranscript)
+                        }
+                        if let notes = meeting.notes {
+                            BakbakGhostPill(title: "Copy notes", compact: true) {
+                                copy(notes.plainText)
+                            }
                         }
                         BakbakGhostPill(title: "Rename", compact: true) {
                             renameText = meeting.title
@@ -140,6 +143,124 @@ struct MeetingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(BakbakTheme.fog)
         }
+    }
+
+    /// Summary, decisions and action items — or the state of getting them.
+    @ViewBuilder
+    private func notesSection(for meeting: Meeting) -> some View {
+        if let notes = meeting.notes {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    sectionLabel("Notes")
+                    Spacer()
+                    if appState.canWriteNotes {
+                        Button("Rewrite") { appState.writeNotes(for: meeting.id) }
+                            .font(BakbakTheme.bodyFont(12))
+                            .foregroundStyle(BakbakTheme.slate)
+                            .buttonStyle(.plain)
+                            .disabled(appState.notesInProgress.contains(meeting.id))
+                    }
+                }
+                Text(notes.summary)
+                    .font(BakbakTheme.bodyFont(15))
+                    .foregroundStyle(BakbakTheme.ink)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+                if !notes.decisions.isEmpty {
+                    noteList("Decisions", items: notes.decisions, icon: "checkmark")
+                }
+                if !notes.actionItems.isEmpty {
+                    noteList("Action items", items: notes.actionItems, icon: "square")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .background(BakbakTheme.paper, in: RoundedRectangle(cornerRadius: BakbakTheme.radiusCard, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: BakbakTheme.radiusCard, style: .continuous)
+                    .stroke(BakbakTheme.hairline, lineWidth: 1)
+            )
+        } else if appState.notesInProgress.contains(meeting.id) {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Writing notes on this Mac…")
+                    .font(BakbakTheme.bodyFont(13))
+                    .foregroundStyle(BakbakTheme.slate)
+            }
+        } else if !meeting.cleanedTranscript.isEmpty {
+            if appState.canWriteNotes {
+                HStack(spacing: 10) {
+                    BakbakGhostPill(title: "Write notes", compact: true) {
+                        appState.writeNotes(for: meeting.id)
+                    }
+                    if appState.notesFailed.contains(meeting.id) {
+                        Text("Couldn't write notes for this one. Try again.")
+                            .font(BakbakTheme.bodyFont(12))
+                            .foregroundStyle(BakbakTheme.slate)
+                    }
+                }
+            } else {
+                Text("Turn on Apple Intelligence (System Settings → Apple Intelligence & Siri) to get a summary and action items.")
+                    .font(BakbakTheme.bodyFont(12))
+                    .foregroundStyle(BakbakTheme.slate)
+            }
+        }
+    }
+
+    private func noteList(_ title: String, items: [String], icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionLabel(title)
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(BakbakTheme.ash)
+                    Text(item)
+                        .font(BakbakTheme.bodyFont(14))
+                        .foregroundStyle(BakbakTheme.ink)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    /// Speaker-labelled turns when we know who spoke, otherwise the plain transcript.
+    private func transcript(for meeting: Meeting) -> some View {
+        Group {
+            if let segments = meeting.segments, !segments.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(segment.speaker.label.uppercased())
+                                .font(BakbakTheme.bodyFont(11, weight: .medium))
+                                .tracking(0.6)
+                                .foregroundStyle(segment.speaker == .you ? BakbakTheme.sienna : BakbakTheme.slate)
+                            Text(segment.text)
+                                .font(BakbakTheme.bodyFont(15))
+                                .foregroundStyle(BakbakTheme.ink)
+                                .lineSpacing(4)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+            } else {
+                Text(meeting.cleanedTranscript.isEmpty ? "(No speech detected)" : meeting.cleanedTranscript)
+                    .font(BakbakTheme.bodyFont(15))
+                    .foregroundStyle(BakbakTheme.ink)
+                    .lineSpacing(4)
+                    .textSelection(.enabled)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(BakbakTheme.mist, in: RoundedRectangle(cornerRadius: BakbakTheme.radiusCard, style: .continuous))
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(BakbakTheme.bodyFont(11, weight: .medium))
+            .tracking(0.6)
+            .foregroundStyle(BakbakTheme.ash)
     }
 
     private var selectedMeeting: Meeting? {
@@ -204,6 +325,9 @@ private struct MeetingCard: View {
     }
 
     private var previewText: String {
+        if let summary = meeting.notes?.summary, !summary.isEmpty {
+            return summary
+        }
         let t = meeting.cleanedTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
         return t.isEmpty ? "No speech detected" : t
     }

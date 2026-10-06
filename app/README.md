@@ -1,6 +1,6 @@
 # Bakbak
 
-Personal, **fully on-device** dictation for macOS — a Wispr Flow–style hold-to-talk menubar app for Devan Sharma.
+Personal, **fully on-device** dictation and meeting notes for macOS — Wispr Flow–style hold-to-talk plus Granola-style meeting notes, in one menubar app for Devan Sharma.
 
 Hold **Right Option**, speak, release → polished text is pasted at the cursor in any app. English only. No accounts, no paid APIs, no cloud ASR.
 
@@ -9,6 +9,7 @@ Hold **Right Option**, speak, release → polished text is pasted at the cursor 
 | **Platform** | macOS 14+ (Apple Silicon) |
 | **ASR** | [FluidAudio](https://github.com/FluidInference/FluidAudio) Parakeet TDT **v2** (English, Apache-2.0) |
 | **Cleanup (Phase 2)** | Free + local only: Apple Foundation Models / Apple Intelligence when available → built-in heuristic rules. No paid API keys. |
+| **Meeting notes** | Apple Intelligence on-device model (macOS 26+, Apple Intelligence on). Summary, decisions, action items. |
 | **Signing** | Apple Development identity when available (stable TCC); ad-hoc fallback |
 
 Phases **0–2** (dictation + cleanup + dictionary) and **4** (meeting mode, mic-first + optional ScreenCaptureKit system audio) are implemented. Phase 3 (languages / WhisperKit) is not started.
@@ -88,13 +89,19 @@ On first successful ASR warm-up, FluidAudio downloads Parakeet **v2** (~hundreds
 ### Meeting mode (Phase 4)
 
 1. Menu bar → **Start meeting** (parrot / status becomes a red record icon while live).
-2. Speak into the mic; if Screen Recording is granted, system audio is mixed in too.
+2. Speak into the mic; if Screen Recording is granted, system audio is captured too.
 3. **Stop meeting** → on-device Parakeet transcription (chunked for long audio) → optional cleanup → saved to the Meetings library.
-4. Menu → **Meetings…** to browse, copy, rename, or delete transcripts.
+4. Bakbak then writes **notes** in the background: a short summary, decisions, and action items with an owner ("You: send the draft by Friday").
+5. Menu → **Meetings…** to browse, copy (transcript or notes), rename, rewrite notes, or delete.
 
-**Retention:** transcripts auto-delete after **30 days** (on launch and when saving). Audio is not retained.  
-**Files:** `~/Library/Application Support/Bakbak/meetings.json`  
-**Deferred:** live rolling transcript, speaker diarisation, LLM summary / action items.
+**You / Them labels.** With system audio, the mic is *you* and system audio is *them*. Every 100 ms Bakbak checks which track is louder (on laptop speakers the mic hears the call too, but much more quietly than the system feed), groups that into speaker turns, and transcribes each turn separately. Mic-only meetings get a plain transcript. Headphones give the cleanest split. Logic: `Sources/Bakbak/Audio/SpeakerTurns.swift`.
+
+**Notes.** `Sources/Bakbak/Notes/MeetingNotesWriter.swift` uses Apple's on-device model with structured output. Long transcripts are noted in parts that fit the model's context (~1,200 words each), action items are owned per part (the model quotes the line where someone takes the task on), and the summaries and decisions are merged. A 20-minute meeting takes ~30 s. Needs Apple Intelligence turned on (System Settings → Apple Intelligence & Siri); without it, meetings still save with transcripts.
+
+**Retention:** transcripts and notes auto-delete after **30 days** (on launch and when saving). Audio is not retained.  
+**Files:** `~/Library/Application Support/Bakbak/meetings.json` (older files load fine; new fields are optional)  
+**Checks:** `make check-meeting` (speaker turns, transcript formatting, notes helpers; no models needed)  
+**Deferred:** live rolling transcript, auto-start when a call begins, search across meetings.
 
 ---
 

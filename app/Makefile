@@ -2,7 +2,7 @@
 CONFIGURATION ?= release
 APP_DIR ?= dist/Bakbak.app
 
-.PHONY: build app run clean fetch check-cleanup icns
+.PHONY: build app run clean fetch check-cleanup check-meeting icns
 
 fetch:
 	swift package resolve
@@ -19,6 +19,10 @@ run: app
 # Heuristic cleanup regression checks (fast; no app bundle needed)
 check-cleanup:
 	./Scripts/check_cleanup.sh
+
+# Meeting speaker-turn + notes-helper checks (fast; no app bundle or models needed)
+check-meeting:
+	./Scripts/check_meeting.sh
 
 clean:
 	rm -rf .build dist

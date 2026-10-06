@@ -118,6 +118,29 @@ actor TranscriptionService {
         return (joined, duration, confidence)
     }
 
+    /// Transcribes each speaker turn on its own (mixed audio, so overlapping speech isn't lost).
+    func transcribeTurns(
+        _ turns: [SpeakerTurnDetector.Turn],
+        capture: MeetingRecorder.CaptureResult
+    ) async throws -> [MeetingSegment] {
+        var segments: [MeetingSegment] = []
+        for turn in turns {
+            let audio = capture.mixed(turn.range)
+            // Parakeet needs a little audio to say anything useful (~0.15 s).
+            guard audio.count >= 2_400 else { continue }
+            let result = try await transcribeMeeting(samples: audio)
+            segments.append(
+                MeetingSegment(
+                    speaker: turn.speaker,
+                    startSeconds: Double(turn.range.lowerBound) / 16_000.0,
+                    endSeconds: Double(turn.range.upperBound) / 16_000.0,
+                    text: result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
+            )
+        }
+        return segments
+    }
+
     func unload() async {
         if let manager = asrManager {
             await manager.cleanup()

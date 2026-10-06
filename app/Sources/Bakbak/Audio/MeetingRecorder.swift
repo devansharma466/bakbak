@@ -4,12 +4,29 @@ import Foundation
 /// Coordinates mic (+ optional ScreenCaptureKit system audio) for a meeting session.
 /// Mic is always required. System audio is best-effort when Screen Recording is granted.
 final class MeetingRecorder: @unchecked Sendable {
+    /// Mic and system audio are kept apart so the transcript can tell you from them;
+    /// `mixed(_:)` sums them on demand rather than holding a third copy of a long meeting.
     struct CaptureResult: Sendable {
-        let samples: [Float]
-        let usedSystemAudio: Bool
+        let micSamples: [Float]
+        /// Empty when system audio wasn't captured.
+        let systemSamples: [Float]
         let durationSeconds: Double
         let startedAt: Date
         let endedAt: Date
+
+        var usedSystemAudio: Bool { !systemSamples.isEmpty }
+        var sampleCount: Int { max(micSamples.count, systemSamples.count) }
+
+        /// Mic + system mixed (or mic alone), optionally just one stretch of it.
+        func mixed(_ range: Range<Int>? = nil) -> [Float] {
+            let range = range ?? 0..<sampleCount
+            func slice(_ track: [Float]) -> [Float] {
+                let clamped = range.clamped(to: 0..<track.count)
+                return Array(track[clamped])
+            }
+            guard usedSystemAudio else { return slice(micSamples) }
+            return MeetingRecorder.mix(mic: slice(micSamples), system: slice(systemSamples))
+        }
     }
 
     enum RecorderError: LocalizedError {
@@ -61,7 +78,7 @@ final class MeetingRecorder: @unchecked Sendable {
         syncSetSession(startedAt: Date(), systemAudioEnabled: used)
     }
 
-    /// Stop all captures, mix if both present, return 16 kHz mono samples.
+    /// Stop all captures and return both 16 kHz mono tracks.
     func stop() async throws -> CaptureResult {
         let (started, wantSystem) = try syncClearSession()
 
@@ -74,20 +91,10 @@ final class MeetingRecorder: @unchecked Sendable {
         }
 
         let ended = Date()
-        let mixed: [Float]
-        let usedSystem: Bool
-        if !systemSamples.isEmpty {
-            mixed = Self.mix(mic: micSamples, system: systemSamples)
-            usedSystem = true
-        } else {
-            mixed = micSamples
-            usedSystem = false
-        }
-
-        let duration = Double(mixed.count) / 16_000.0
+        let duration = Double(max(micSamples.count, systemSamples.count)) / 16_000.0
         return CaptureResult(
-            samples: mixed,
-            usedSystemAudio: usedSystem,
+            micSamples: micSamples,
+            systemSamples: systemSamples,
             durationSeconds: duration,
             startedAt: started,
             endedAt: ended
