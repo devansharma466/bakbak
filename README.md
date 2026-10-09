@@ -1,6 +1,6 @@
 # Bakbak
 
-**Wispr Flow + Granola in one Mac app, fully on-device.** Devan Sharma's personal dictation and meeting-notes app.
+**Wispr Flow + Granola in one Mac app, fully on-device.** My personal dictation and meeting-notes app.
 
 - **Dictation (Wispr Flow–style):** hold Right Option, speak, release, and polished text is pasted at the cursor in any app.
 - **Meeting notes (Granola-style):** record a call, get a transcript split into **You** / **Them**, plus a summary, decisions and action items written by Apple Intelligence on your Mac.
